@@ -71,6 +71,12 @@ export const NODE_DIST = {
         subdir: `node-v${NODE_VERSION}-linux-x64`,
         bin:    `node-v${NODE_VERSION}-linux-x64/bin`,
     },
+    'linux-arm64': {
+        url:  `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-arm64.tar.xz`,
+        sha256: 'eab80cb88f8fda1e65f5e8d0420c9809bdb320b03fd34976ab7161b6e703b910',
+        subdir: `node-v${NODE_VERSION}-linux-arm64`,
+        bin:    `node-v${NODE_VERSION}-linux-arm64/bin`,
+    },
     'darwin-arm64': {
         url:  `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-darwin-arm64.tar.gz`,
         sha256: '1d7f34ec4c03e12d8b33481e5c4560432d7dc31a0ef3ff5a4d9a8ada7cf6ecc9',

@@ -22,7 +22,7 @@ case "$(uname -s)" in
                 ;;
             aarch64)
                 NODE_ARCH="linux-arm64"
-                NODE_SHA256="" # TODO: pin when supported
+                NODE_SHA256="eab80cb88f8fda1e65f5e8d0420c9809bdb320b03fd34976ab7161b6e703b910"
                 ;;
             *) echo "Unsupported Linux arch: $(uname -m)" >&2; exit 1 ;;
         esac
