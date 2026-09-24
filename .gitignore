@@ -23,3 +23,6 @@ _*.sh
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Kept local on purpose: the repository ships no README
+/README.md
