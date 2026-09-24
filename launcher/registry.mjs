@@ -12,6 +12,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { listProfileNames, defaultProfileName } from './profiles.mjs';
 import { PORTABLE_ROOT } from './paths.mjs';
+import { loadState } from './ais-state.mjs';
 
 const IS_WIN   = process.platform === 'win32';
 const IS_LINUX = process.platform === 'linux';
@@ -35,8 +36,15 @@ const TOOLS = [
 ];
 
 /** The profiles a tool's cascade should list: its own, with its yet-to-be-
- *  created default as fallback so a fresh cascade still has one row. */
+ *  created default as fallback so a fresh cascade still has one row.
+ *  Antigravity accounts live in agm, not in profile directories: its rows
+ *  are the ais profiles that have one ("active" = whichever is active). */
 function toolProfiles(tool) {
+    if (tool.profileTool === 'antigravity') {
+        const state = loadState();
+        const names = state.order.filter(n => state.profiles[n].agy);
+        return names.length ? names : ['active'];
+    }
     const names = listProfileNames({ tool: tool.profileTool });
     if (names.length === 0) names.push(defaultProfileName(tool.profileTool));
     return names;

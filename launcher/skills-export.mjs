@@ -6,18 +6,19 @@
 // in `skipped`.
 
 import fs   from 'node:fs';
+import os   from 'node:os';
 import path from 'node:path';
 import {
     TEMPLATE_SKILLS_DIR, TEMPLATE_CLAUDE_MD,
-    codexConfigDir, copilotConfigDir, geminiHomeDir,
+    codexConfigDir, copilotConfigDir,
 } from './paths.mjs';
 import { listTemplateSkills } from './profile-merge.mjs';
 
 /**
  * Per-tool native layout:
- *   skillsDir(profile)       where SKILL.md folders go
- *   instructionFiles(profile) global-instruction file(s) seeded with the
- *                             skill gate (create-if-absent each)
+ *   skillsDirs(profile, opts)       where SKILL.md folders go
+ *   instructionFiles(profile, opts) global-instruction file(s) seeded with
+ *                                   the skill gate (create-if-absent each)
  */
 const LAYOUTS = {
     codex: {
@@ -32,9 +33,11 @@ const LAYOUTS = {
         // Per agy's own customization guide (builtin skill agy-customizations):
         // machine-global customizations are discovered under ~/.gemini/config/,
         // skills as config/skills/<name>/SKILL.md. The global GEMINI.md rules
-        // file carries the skill gate.
-        skillsDirs: p => [path.join(geminiHomeDir(p), 'config', 'skills')],
-        instructionFiles: p => [path.join(geminiHomeDir(p), 'GEMINI.md')],
+        // file carries the skill gate. agy runs with the real HOME (its login
+        // is switched by agm, not by HOME redirection), so this is the user's
+        // own ~/.gemini rather than a profile directory.
+        skillsDirs: (p, o) => [path.join(o.agyHome, '.gemini', 'config', 'skills')],
+        instructionFiles: (p, o) => [path.join(o.agyHome, '.gemini', 'GEMINI.md')],
     },
 };
 
@@ -45,16 +48,18 @@ export function supportedExportTools() {
 /**
  * Export all template skills + the skill-gate instructions into `tool`'s
  * native layout for `profileName`. Returns { merged: [], skipped: [] }.
+ * opts.agyHome: home directory whose .gemini/ Antigravity reads (default ~).
  */
-export function exportSkills(tool, profileName) {
+export function exportSkills(tool, profileName, { agyHome = os.homedir() } = {}) {
     const layout = LAYOUTS[tool];
+    const opts = { agyHome };
     if (!layout) throw new Error(`Unknown export tool: ${tool}`);
 
     const merged = [], skipped = [];
 
     const skills = listTemplateSkills();
     if (!skills.length) skipped.push('skills (template library not shipped)');
-    for (const dir of layout.skillsDirs(profileName)) {
+    for (const dir of layout.skillsDirs(profileName, opts)) {
         for (const s of skills) {
             const src = path.join(TEMPLATE_SKILLS_DIR, s.name);
             const dst = path.join(dir, s.name);
@@ -69,7 +74,7 @@ export function exportSkills(tool, profileName) {
         skipped.push('instructions (no template CLAUDE.md shipped)');
     } else {
         const gate = fs.readFileSync(TEMPLATE_CLAUDE_MD, 'utf8');
-        for (const file of layout.instructionFiles(profileName)) {
+        for (const file of layout.instructionFiles(profileName, opts)) {
             if (fs.existsSync(file)) {
                 skipped.push(`${path.basename(file)} (already present)`);
                 continue;

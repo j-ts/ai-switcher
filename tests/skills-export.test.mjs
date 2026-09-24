@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs   from 'node:fs';
+import os   from 'node:os';
 import path from 'node:path';
 import { exportSkills, supportedExportTools } from '../launcher/skills-export.mjs';
 import { listTemplateSkills } from '../launcher/profile-merge.mjs';
 import {
     PROFILES_ROOT, TEMPLATE_SKILLS_DIR, TEMPLATE_CLAUDE_MD,
-    codexConfigDir, copilotConfigDir, geminiHomeDir,
+    codexConfigDir, copilotConfigDir,
 } from '../launcher/paths.mjs';
 
 const shipped = fs.existsSync(TEMPLATE_SKILLS_DIR) && fs.existsSync(TEMPLATE_CLAUDE_MD);
@@ -52,15 +53,16 @@ test('copilot export: skills + copilot-instructions.md in COPILOT_HOME layout', 
                  fs.readFileSync(TEMPLATE_CLAUDE_MD, 'utf8'));
 });
 
-test('antigravity export: global config skills + GEMINI.md gate', (t) => {
+test('antigravity export: global config skills + GEMINI.md gate in the real ~/.gemini', (t) => {
     if (!shipped) return;
-    const p = mkProfile(t, 'sx-agy');
-    exportSkills('antigravity', p);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sx-agy-'));
+    t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+    exportSkills('antigravity', null, { agyHome: home });
     // Per agy's customization guide: machine-global skills live under
     // ~/.gemini/config/skills/<name>/SKILL.md.
     assert.ok(fs.existsSync(path.join(
-        geminiHomeDir(p), 'config', 'skills', 'structured-memory', 'SKILL.md')));
-    assert.ok(fs.existsSync(path.join(geminiHomeDir(p), 'GEMINI.md')));
+        home, '.gemini', 'config', 'skills', 'structured-memory', 'SKILL.md')));
+    assert.ok(fs.existsSync(path.join(home, '.gemini', 'GEMINI.md')));
 });
 
 test('re-export is a no-op that reports skips, never overwrites', (t) => {
