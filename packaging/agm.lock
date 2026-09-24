@@ -1,0 +1,4 @@
+# agm (https://github.com/shyim/agm) is built from this exact commit for every
+# release. Bump deliberately: review the upstream diff, then change both lines.
+repo=shyim/agm
+commit=1d3ce8497e36ffa60c3b4e369168315a7ae4d469
