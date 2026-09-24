@@ -32,6 +32,14 @@ jobs:
       - name: Unit tests
         run: node --test
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Build agm for this runner (pinned commit)
+        run: node packaging/build-agm.mjs --targets current --install
+
       - name: Bootstrap smoke-test (Windows)
         if: runner.os == 'Windows'
         shell: cmd
@@ -43,3 +51,39 @@ jobs:
         run: |
           chmod +x claude.sh
           ./claude.sh --list-profiles
+
+      - name: ais smoke-test (Unix)
+        if: runner.os != 'Windows'
+        env:
+          CLAUDE_PROFILES_ROOT: ${{ runner.temp }}/ais-profiles
+        run: |
+          set -eu
+          ./bin/ais --version
+          ./bin/ais agm --help >/dev/null
+          ./bin/ais profile add main --no-login
+          ./bin/ais profile add second --no-login
+          ./bin/ais use second
+          ./bin/ais next claude
+          ./bin/ais status --json | node -e '
+            const s = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            if (s.active.claude !== "main" || s.active.codex !== "second") { console.error(s.active); process.exit(1); }'
+          if ./bin/ais use nobody 2>/dev/null; then echo "unknown profile accepted"; exit 1; fi
+
+      - name: ais smoke-test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CLAUDE_PROFILES_ROOT: ${{ runner.temp }}\ais-profiles
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function ais { cmd.exe /c "bin\ais.cmd $args"; if ($LASTEXITCODE) { throw "ais $args exited $LASTEXITCODE" } }
+          ais --version
+          ais agm --help | Out-Null
+          ais profile add main --no-login
+          ais profile add second --no-login
+          ais use second
+          ais next claude
+          $s = (cmd.exe /c "bin\ais.cmd status --json") | ConvertFrom-Json
+          if ($s.active.claude -ne 'main' -or $s.active.codex -ne 'second') { throw "unexpected active: $($s.active)" }
+          cmd.exe /c "bin\ais.cmd use nobody" 2>$null
+          if ($LASTEXITCODE -eq 0) { throw 'unknown profile accepted' }

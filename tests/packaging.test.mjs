@@ -81,3 +81,10 @@ test('installers never replace app/ or profiles/', () => {
     assert.match(read('install.ps1'), /\$item\.Name -in @\('app', 'profiles'\)/);
 });
 
+test('the CI verify job installs every unix asset name it can meet', () => {
+    const yml = read('.github/workflows/_build.yml');
+    for (const t of TARGETS.filter(x => x.format === 'tar.gz')) {
+        assert.ok(yml.includes(`asset=${assetName(t)}`), assetName(t));
+    }
+    assert.ok(yml.includes("'ais-windows-x64.zip'"));
+});

@@ -2,7 +2,14 @@ name: Build artifacts
 
 # Shared packaging block. Called by release.yml (manual dispatch) and
 # nightly.yml (auto, on CI success). Single place that turns a commit into
-# the shippable portable zip so release and nightly never diverge.
+# the shippable archives so release and nightly never diverge.
+#
+#   build   agm from the commit pinned in packaging/agm.lock (pure Go, cross-
+#           compiled for every target), then one archive per platform plus
+#           the multi-platform portable zip, the installers and SHA256SUMS.
+#   verify  installs those exact archives with the shipped installers on
+#           Linux, macOS (Apple Silicon) and Windows and runs them - so a
+#           cross-compiled agm that would not start never gets published.
 #
 # Versioning: FILES drive versions, never git tags. version.pl composes
 # MAJOR.MINOR.PATCH from the root VERSION file + the git commit count.
@@ -39,19 +46,83 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "Resolved version: $V"
 
-      - name: Build portable zip
-        run: |
-          V="${{ steps.version.outputs.version }}"
-          STAGE="ClaudeCodePortable-${V}"
-          rm -rf "$STAGE" dist
-          mkdir -p dist "$STAGE"
-          cp -r launcher Claude.bat claude.sh README.md LICENSE CHANGELOG.md .gitignore VERSION "$STAGE/"
-          [ -d assets ] && cp -r assets "$STAGE/" || true
-          chmod +x "$STAGE/claude.sh"
-          zip -r "dist/${STAGE}.zip" "$STAGE"
-          ls -la dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Build agm (pinned commit, all targets)
+        run: node packaging/build-agm.mjs
+
+      - name: Package archives
+        run: node packaging/package.mjs --version "${{ steps.version.outputs.version }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: app-artifacts
           path: dist/*
+
+  verify:
+    needs: build
+    name: verify ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-artifacts
+          path: dist
+
+      - name: Install + run the release archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          set -eu
+          cd dist
+          if command -v sha256sum >/dev/null; then sha256sum -c SHA256SUMS; else shasum -a 256 -c SHA256SUMS; fi
+          case "$(uname -s)-$(uname -m)" in
+            Linux-x86_64)  asset=ais-linux-x64.tar.gz ;;
+            Linux-aarch64) asset=ais-linux-arm64.tar.gz ;;
+            Darwin-arm64)  asset=ais-macos-arm64.tar.gz ;;
+            Darwin-x86_64) asset=ais-macos-x64.tar.gz ;;
+          esac
+          export AIS_HOME="$RUNNER_TEMP/ais" AIS_BIN_DIR="$RUNNER_TEMP/bin" AIS_NO_MODIFY_PATH=1
+          AIS_ARCHIVE="$PWD/$asset" sh ./install.sh
+          "$AIS_BIN_DIR/ais" --version                 # through the symlink
+          "$AIS_BIN_DIR/ais" agm --help >/dev/null     # the bundled, cross-compiled agm starts
+          "$AIS_BIN_DIR/ais" profile add main --no-login
+          echo keep > "$AIS_HOME/profiles/claude-main/marker"
+          AIS_ARCHIVE="$PWD/$asset" AIS_NO_BOOTSTRAP=1 sh ./install.sh   # in-place update
+          test "$(cat "$AIS_HOME/profiles/claude-main/marker")" = keep
+          "$AIS_BIN_DIR/ais" status
+
+      - name: Install + run the release archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location dist
+          foreach ($line in Get-Content SHA256SUMS) {
+            $hash, $name = $line -split '\s+'
+            if ((Get-FileHash -Algorithm SHA256 $name).Hash.ToLower() -ne $hash) { throw "checksum mismatch: $name" }
+          }
+          $env:AIS_HOME = Join-Path $env:RUNNER_TEMP 'ais'
+          $env:AIS_NO_MODIFY_PATH = '1'
+          $env:AIS_ARCHIVE = Join-Path $PWD 'ais-windows-x64.zip'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+          if ($LASTEXITCODE) { throw "install.ps1 failed" }
+          $ais = Join-Path $env:AIS_HOME 'bin\ais.cmd'
+          & $ais --version;                          if ($LASTEXITCODE) { throw 'ais --version' }
+          & $ais agm --help | Out-Null;              if ($LASTEXITCODE) { throw 'ais agm --help' }
+          & $ais profile add main --no-login;        if ($LASTEXITCODE) { throw 'profile add' }
+          Set-Content (Join-Path $env:AIS_HOME 'profiles\claude-main\marker') 'keep'
+          $env:AIS_NO_BOOTSTRAP = '1'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+          if ((Get-Content (Join-Path $env:AIS_HOME 'profiles\claude-main\marker')) -ne 'keep') { throw 'update lost profile data' }
+          & $ais status;                             if ($LASTEXITCODE) { throw 'ais status' }

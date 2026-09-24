@@ -1,4 +1,4 @@
-# CI/CD Pipeline — ClaudeCodePortable
+# CI/CD Pipeline — ai-switcher
 
 > Everything in this folder is the automated pipeline for this repository.
 > Workflows live here, their helper scripts live in `scripts/`.
@@ -9,10 +9,10 @@ Three workflows, one shared build block, three helper scripts:
 
 | File                            | Trigger                             | Purpose                                    |
 |---------------------------------|-------------------------------------|--------------------------------------------|
-| `ci.yml`                        | push + PR + `workflow_call`         | Unit tests + bootstrap smoke test on ubuntu/windows/macOS |
+| `ci.yml`                        | push + PR + `workflow_call`         | Unit tests, agm build, bootstrap + `ais` smoke tests on ubuntu/windows/macOS |
 | `release.yml`                   | **manual dispatch**                 | Package + publish, then tag `vyyyyMMdd`  |
 | `nightly.yml`                   | successful CI run on `main`/`master`| Publish `nightly-yyyyMMdd` prerelease    |
-| `_build.yml`                    | `workflow_call` (internal)          | Builds the portable zip (shared packaging) |
+| `_build.yml`                    | `workflow_call` (internal)          | Builds agm (pinned commit) + per-platform archives, then installs and runs them on all three OSes |
 | `scripts/version.pl`            | invoked by the workflows            | Compose `MAJOR.MINOR.PATCH.BUILD` from `VERSION` + commit count |
 | `scripts/update-changelog.mjs`  | invoked by the workflows            | Bucketise commits into CHANGELOG.md        |
 | `scripts/prune-nightlies.mjs`   | invoked by the workflows            | 3-gen (GFS) retention of nightlies         |
@@ -35,7 +35,7 @@ Three workflows, one shared build block, three helper scripts:
         └────┬─────┘  └─────┬───────┘
              │              │
              ▼              ▼
-        (both call _build.yml, which zips the portable launcher)
+        (both call _build.yml: agm build → archives → verify installs)
              │              │
              ▼              ▼
   publish + tag vyyyyMMdd  nightly-yyyyMMdd (prerelease)
@@ -58,7 +58,8 @@ Three workflows, one shared build block, three helper scripts:
 - **Files drive versions, never tags.** The root `VERSION` file holds `MAJOR.MINOR.PATCH`; `version.pl` appends the commit count. The repo-level Release/tag is the date marker `vyyyyMMdd`.
 - **Release calls CI via `workflow_call`.** Calling ci.yml explicitly keeps tests and releases in lockstep with zero copy-paste.
 - **Nightly builds from the `workflow_run` payload's SHA**, not branch tip — so a nightly is always a build of code CI actually validated.
-- **`_build.yml` is the single packaging block**, shared by release and nightly so they never diverge.
+- **`_build.yml` is the single packaging block**, shared by release and nightly so they never diverge. Its `verify` job installs the exact archives with the shipped `install.sh`/`install.ps1` on Linux, macOS and Windows before anything is published, so a cross-compiled agm that would not start never ships.
+- **agm is built, never downloaded.** `packaging/agm.lock` pins the upstream commit; `packaging/build-agm.mjs` fetches that source and cross-compiles it (pure Go, CGO off) for every target.
 - **3-generation (GFS) retention**, not "keep last N". GFS guarantees at least one build per week for a month and one per month for a quarter.
 
 ## Scripts
