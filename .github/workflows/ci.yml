@@ -87,3 +87,4 @@ jobs:
           if ($s.active.claude -ne 'main' -or $s.active.codex -ne 'second') { throw "unexpected active: $($s.active)" }
           cmd.exe /c "bin\ais.cmd use nobody" 2>$null
           if ($LASTEXITCODE -eq 0) { throw 'unknown profile accepted' }
+          exit 0   # the runner would otherwise report that expected failure's exit code
