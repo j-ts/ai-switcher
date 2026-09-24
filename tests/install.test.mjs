@@ -12,3 +12,9 @@ test('sha256 hashes a small file deterministically', (t) => {
     // `printf 'hello world\n' | sha256sum` → a948904f2f0f479b8f8197694b30184b0d2ed1c1cd2a1ec0fb85d299a192a447
     assert.equal(sha256(tmp), 'a948904f2f0f479b8f8197694b30184b0d2ed1c1cd2a1ec0fb85d299a192a447');
 });
+
+test('winPowerShellEnv drops PSModulePath in any spelling, keeps the rest', async () => {
+    const { winPowerShellEnv } = await import('../launcher/install.mjs');
+    const env = winPowerShellEnv({ PATH: 'p', PSModulePath: 'a', psmodulepath: 'b', Other: 'x' });
+    assert.deepEqual(env, { PATH: 'p', Other: 'x' });
+});

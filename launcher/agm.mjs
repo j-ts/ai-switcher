@@ -14,6 +14,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 
 import { IS_WIN, PORTABLE_ROOT, PROFILES_ROOT, APP_ROOT, currentPlatformKey } from './paths.mjs';
+import { winPowerShellEnv } from './install.mjs';
 
 const EXE = IS_WIN ? 'agm.exe' : 'agm';
 
@@ -55,7 +56,8 @@ export function agmBinary() {
 }
 
 export function agmEnv(base = process.env) {
-    const env = { ...base, AGM_DATA_DIR: agmDataDir() };
+    // agm writes the Windows credential through Windows PowerShell.
+    const env = { ...winPowerShellEnv(base), AGM_DATA_DIR: agmDataDir() };
     // Either of these would silently point agm at a different store.
     delete env.AGM_DB_PATH;
     delete env.ANTIGRAVITY_AGENT_DIR;

@@ -28,6 +28,10 @@ REM after node exits, without delayed expansion mangling "!" in arguments.
 
 :bootstrap
 setlocal EnableDelayedExpansion
+REM Started from PowerShell 7, PSModulePath points at its modules and Windows
+REM PowerShell cannot load Get-FileHash/Expand-Archive. Without the variable it
+REM uses its own defaults (endlocal restores it for everything after).
+set "PSModulePath="
 echo ais: bootstrapping Node.js %NODE_VERSION% (first run only)... 1>&2
 if not exist "%NODE_DIR%" mkdir "%NODE_DIR%"
 powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%NODE_URL%' -OutFile '%NODE_DIR%\node.zip' -UseBasicParsing"

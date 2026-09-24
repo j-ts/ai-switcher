@@ -55,10 +55,11 @@ test('agmWouldResolve mirrors agm substring matching (first hit in list order)',
 });
 
 test('agmEnv pins agm to the portable store and drops overrides', () => {
-    const env = agmEnv({ PATH: 'p', AGM_DB_PATH: '/elsewhere.db', ANTIGRAVITY_AGENT_DIR: '/other' });
+    const env = agmEnv({ PATH: 'p', AGM_DB_PATH: '/elsewhere.db', ANTIGRAVITY_AGENT_DIR: '/other', PSModulePath: 'C:\\pwsh7\\Modules' });
     assert.equal(env.AGM_DATA_DIR, agmDataDir());
     assert.equal(env.AGM_DB_PATH, undefined);
     assert.equal(env.ANTIGRAVITY_AGENT_DIR, undefined);
+    assert.equal(env.PSModulePath, undefined);   // agm's credential write runs Windows PowerShell
     assert.equal(env.PATH, 'p');
     if (!process.env.AIS_AGM_DATA_DIR) assert.equal(agmDataDir(), path.join(PROFILES_ROOT, '.agm'));
 });

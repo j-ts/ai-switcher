@@ -26,6 +26,10 @@ if not exist "%NODE_DIR%" mkdir "%NODE_DIR%"
 
 if not exist "%NODE_BIN%\node.exe" (
     echo Bootstrapping Node.js %NODE_VERSION% ^(first run only^)...
+    REM Started from PowerShell 7, PSModulePath points at its modules and
+    REM Windows PowerShell cannot load Get-FileHash/Expand-Archive.
+    set "PSMODULEPATH_SAVED=!PSModulePath!"
+    set "PSModulePath="
     set "NODE_ZIP=%NODE_DIR%\node.zip"
     powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%NODE_URL%' -OutFile '%NODE_DIR%\node.zip' -UseBasicParsing" || (
         echo ERROR: Failed to download Node.js.
@@ -44,6 +48,7 @@ if not exist "%NODE_BIN%\node.exe" (
         exit /b 1
     )
     del /q "%NODE_DIR%\node.zip" >nul 2>&1
+    set "PSModulePath=!PSMODULEPATH_SAVED!"
 )
 
 set "PATH=%NODE_BIN%;%PATH%"

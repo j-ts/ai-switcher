@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 
 import { IS_WIN, PORTABLE_ROOT, PROFILES_ROOT, APP_ROOT, currentPlatformKey } from './paths.mjs';
 import { color, promptYesNo, readLine, padRight } from './ui.mjs';
-import { ensureAllRuntimes } from './install.mjs';
+import { ensureAllRuntimes, winPowerShellEnv } from './install.mjs';
 import { setupPath, setPrivacyEnv } from './tool-launcher-core.mjs';
 import { renameProfile as renameToolProfile, deleteProfile, listProfileNames } from './profiles.mjs';
 import {
@@ -627,7 +627,7 @@ function cmdUpdate(argv) {
         die('This is a git checkout - update it with: git pull');
     }
     const { opts } = takeOptions(argv, ['--version']);
-    const env = { ...process.env, AIS_HOME: PORTABLE_ROOT, AIS_NO_BOOTSTRAP: '1' };
+    const env = { ...winPowerShellEnv(), AIS_HOME: PORTABLE_ROOT, AIS_NO_BOOTSTRAP: '1' };
     if (opts.version) env.AIS_VERSION = opts.version;
     const r = IS_WIN
         ? spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(PORTABLE_ROOT, 'install.ps1')], { stdio: 'inherit', env })

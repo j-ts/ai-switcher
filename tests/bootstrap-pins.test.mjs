@@ -40,6 +40,18 @@ test('bin/ais is POSIX sh and LF-only; bin/ais.cmd keeps CRLF', () => {
     assert.equal(cmd.split('\n').length, cmd.split('\r\n').length, 'every line CRLF');
 });
 
+for (const rel of WIN_SCRIPTS) {
+    test(`${rel} clears PSModulePath before calling Windows PowerShell`, () => {
+        // Started from PowerShell 7, the inherited PSModulePath breaks
+        // Get-FileHash / Expand-Archive in Windows PowerShell 5.1.
+        const lines = read(rel).split(/\r?\n/);
+        const clear = lines.findIndex(l => /^\s*set "PSModulePath="\s*$/.test(l));
+        const firstPs = lines.findIndex(l => /^\s*(for \/f .*\(')?powershell\b/i.test(l));
+        assert.ok(clear >= 0, 'PSModulePath is cleared');
+        assert.ok(firstPs > clear, 'before the first powershell call');
+    });
+}
+
 test('bin/ais.cmd exits on the node line so a mid-run update cannot be misread', () => {
     const line = read('bin/ais.cmd').split('\r\n').find(l => l.startsWith('"%NODE_BIN%'));
     assert.match(line, /%\* & call exit \/b %%ERRORLEVEL%%$/);

@@ -73,11 +73,26 @@ function runQuiet(cmd, args, opts = {}) {
     return spawnSync(cmd, args, { encoding: 'utf8', windowsHide: true, ...opts });
 }
 
+/**
+ * Environment for spawning Windows PowerShell 5.1. Started from PowerShell 7,
+ * PSModulePath points at PowerShell 7's modules and 5.1 can no longer load its
+ * own script modules (Get-FileHash, Expand-Archive). Without the variable it
+ * falls back to its default module path.
+ */
+export function winPowerShellEnv(base = process.env) {
+    const env = { ...base };
+    for (const k of Object.keys(env)) {
+        if (k.toLowerCase() === 'psmodulepath') delete env[k];
+    }
+    return env;
+}
+
 export function extractZip(zipPath, destDir) {
     fs.mkdirSync(destDir, { recursive: true });
     if (IS_WIN) {
         run('powershell.exe', ['-NoProfile','-Command',
-            `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`]);
+            `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`],
+            { env: winPowerShellEnv() });
     } else {
         run('unzip', ['-q', '-o', zipPath, '-d', destDir]);
     }
