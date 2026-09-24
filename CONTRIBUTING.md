@@ -1,31 +1,43 @@
-# Contributing to ClaudeCodePortable
+# Contributing to ai-switcher
 
 Thanks for taking the time! This is a small repo and most contributions
 fit into one of a handful of slots. This file explains how to run it
-locally, add a new portable tool, or extend the menus.
+locally, work on `ais` and its agm integration, add a new portable tool, or
+extend the menus.
 
 ## Local development
 
 ```bash
 # Clone
-git clone https://github.com/Hawkynt/ClaudeCodePortable.git
-cd ClaudeCodePortable
-
-# First launch (downloads runtimes into app/ and claude-code into profiles/default)
-./Claude.bat           # Windows
-./claude.sh            # Linux / macOS
+git clone https://github.com/j-ts/ai-switcher.git
+cd ai-switcher
 
 # Unit tests (Node 22+, no dependencies)
 node --test
 
-# Health check
+# agm for this machine (needs Go) -> bin/<platform>/agm
+node packaging/build-agm.mjs --targets current --install
+
+# Run ais from the checkout (downloads Node into app/ on first run)
+./bin/ais setup        # Linux / macOS
+binais.cmd setup      # Windows
+
+# Try things without touching your real profiles
+CLAUDE_PROFILES_ROOT=/tmp/ais-play ./bin/ais profile add test --no-login
+
+# Health checks
+./bin/ais doctor
 ./Claude.bat --doctor
 ```
 
 ## Repository layout
 
 ```
-launcher/        ES-module launchers (claude: launcher.mjs; siblings: happy-/codex-/copilot-/antigravity-launcher.mjs on tool-launcher-core.mjs)
+bin/             the ais command (ais = POSIX sh bootstrap, ais.cmd = Windows); bin/<platform>/agm is dropped in by packaging
+launcher/        ES modules: ais*.mjs (ais commands, registry, rotation, limit detection), agm.mjs/agy.mjs,
+                 per-tool launchers (launcher.mjs, happy-/codex-/copilot-/antigravity-launcher.mjs on tool-launcher-core.mjs)
+packaging/       agm.lock (pinned agm commit), build-agm.mjs, package.mjs, targets.mjs (asset names)
+install.sh/.ps1  installers, also run by `ais update`
 templates/       skill template library + skill-gate CLAUDE.md (committed)
 tests/          node --test unit tests
 assets/         icon + logo
@@ -33,6 +45,23 @@ assets/         icon + logo
 app/            portable runtimes, auto-downloaded (git-ignored)
 profiles/      per-profile data, auto-created  (git-ignored)
 ```
+
+## Working on ais
+
+- The registry logic (`launcher/ais-state.mjs`) and limit detection
+  (`launcher/ais-limits.mjs`) are pure functions - cover changes there with
+  tests first. Limit patterns must come from real session logs, never from
+  guesses; add the verbatim line as a test fixture.
+- `ais run` is tested end to end with a fake CLI (`tests/ais-run.test.mjs`);
+  use `argsFor`/`pollMs` rather than real CLIs.
+- agm is used, not modified. Talk to it through `launcher/agm.mjs` only, and
+  always with `AGM_DATA_DIR` pointing at `profiles/.agm`.
+- **Bumping agm**: review the upstream diff, change the commit in
+  `packaging/agm.lock`, rebuild with `node packaging/build-agm.mjs --targets
+  current --install`, and re-check the `agm list` / `login` / `switch` output
+  formats `launcher/agm.mjs` parses (`tests/agm.test.mjs` pins them).
+- Release archive names live in `packaging/targets.mjs`; the installers and
+  `_build.yml` must ask for the same names (`tests/packaging.test.mjs`).
 
 ## Adding a sibling tool launcher
 
@@ -83,8 +112,9 @@ good thing to cover — the whole launcher is built to tolerate them.
 ## Release process
 
 - **Nightly** builds are automatic after every successful CI run on
-  `master` (`.github/workflows/nightly.yml`). They package the CI-validated
-  SHA via the shared `_build.yml` block, publish the zip as a GitHub
+  `main` (`.github/workflows/nightly.yml`). They package the CI-validated
+  SHA via the shared `_build.yml` block (agm build, archives, install check
+  on all three OSes), publish the archives as a GitHub
   pre-release tagged `nightly-YYYYMMDD`, and apply a Grandfather-Father-Son
   pruning pass (7 dailies / 4 weekly / 3 monthly).
 - **Stable releases** are cut by manually dispatching
@@ -136,5 +166,5 @@ land under "Other".
 
 ## License
 
-By contributing, you agree that your work ships under the same LGPL 2.1
-license as the rest of the project. See [LICENSE](./LICENSE).
+By contributing, you agree that your work ships under the same
+LGPL-3.0-or-later license as the rest of the project. See [LICENSE](./LICENSE).

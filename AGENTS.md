@@ -1,4 +1,4 @@
-# Agent guide — ClaudeCodePortable
+# Agent guide — ai-switcher
 
 Working agreement for **all** coding agents and human contributors working in
 this repository. These rules are not optional. The full house spec lives in
@@ -7,10 +7,16 @@ per-repo distillation.
 
 ## What this is
 
-A **portable distribution** of Claude Code: `Claude.bat` / `claude.sh`
-bootstrap pinned runtimes (`launcher/`, `VERSION`), with multi-profile
-support and a keyboard-driven session picker. Tests are `node --test`
-(`tests/*.test.mjs`) — including tests for the CI helper scripts themselves.
+`ais`, a multi-account switcher for Claude Code, OpenAI Codex and Google
+Antigravity, built on a fork of **ClaudeCodePortable** (portable runtimes,
+per-profile Claude/Codex directories, session picker) plus a bundled
+**agm** (Antigravity accounts via the OS credential store). `bin/ais` /
+`bin/ais.cmd` bootstrap the pinned Node and run `launcher/ais.mjs`; the
+per-tool launchers (`Claude.bat` / `claude.sh`, …) remain usable on their
+own. agm is built from the commit in `packaging/agm.lock` and shipped in the
+release archives (`packaging/`). Tests are `node --test`
+(`tests/*.test.mjs`) — including tests for the CI helper scripts and the
+packaging contract.
 
 ## Commits
 
@@ -42,6 +48,10 @@ one unless explicitly asked.
   newest-nightly-always-kept pruning, bot-commit filtering).
 - Batch/cmd files keep CRLF; shell scripts stay POSIX-compatible; no admin
   rights may ever become a requirement.
+- agm is reused, never forked or patched: bump it only by changing the
+  commit in `packaging/agm.lock` after reviewing the upstream diff.
+- Nothing may replace or delete `app/` or `profiles/` during install or
+  update — that is where users' logins live.
 - Privacy section promises in the README are binding: nothing phones home.
 
 ## README & repo conventions
