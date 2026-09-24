@@ -1,0 +1,90 @@
+#!/bin/sh
+# =============================================================================
+#  ais bootstrap (macOS / Linux, and Git Bash on Windows)
+#    Makes sure the SHA256-pinned portable Node exists under app/node, then
+#    hands off to launcher/ais.mjs. POSIX sh on purpose: it also runs as the
+#    target of the ~/.local/bin/ais symlink the installer creates.
+# =============================================================================
+
+set -e
+
+# Resolve our real location through symlinks (no `readlink -f` on macOS).
+self=$0
+while [ -h "$self" ]; do
+    link=$(readlink "$self")
+    case $link in
+        /*) self=$link ;;
+        *)  self=$(dirname "$self")/$link ;;
+    esac
+done
+ROOT=$(cd "$(dirname "$self")/.." && pwd)
+NODE_DIR="$ROOT/app/node"
+NODE_VERSION="22.16.0"
+
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        # Git Bash on Windows: app/node holds the Windows build, which the
+        # batch bootstrap installs. Run it once if needed, then use it.
+        WIN_NODE="$NODE_DIR/node-v${NODE_VERSION}-win-x64/node.exe"
+        if [ ! -f "$WIN_NODE" ]; then
+            cmd.exe //c "$(cygpath -w "$ROOT/bin/ais.cmd")" --version >/dev/null
+        fi
+        exec "$WIN_NODE" "$ROOT/launcher/ais.mjs" "$@"
+        ;;
+    Linux*)
+        case "$(uname -m)" in
+            x86_64|amd64)
+                NODE_ARCH="linux-x64"
+                NODE_SHA256="f4cb75bb036f0d0eddf6b79d9596df1aaab9ddccd6a20bf489be5abe9467e84e" ;;
+            aarch64|arm64)
+                NODE_ARCH="linux-arm64"
+                NODE_SHA256="eab80cb88f8fda1e65f5e8d0420c9809bdb320b03fd34976ab7161b6e703b910" ;;
+            *) echo "ais: unsupported Linux architecture: $(uname -m)" >&2; exit 1 ;;
+        esac
+        NODE_EXT="tar.xz" ;;
+    Darwin*)
+        case "$(uname -m)" in
+            arm64)
+                NODE_ARCH="darwin-arm64"
+                NODE_SHA256="1d7f34ec4c03e12d8b33481e5c4560432d7dc31a0ef3ff5a4d9a8ada7cf6ecc9" ;;
+            x86_64)
+                NODE_ARCH="darwin-x64"
+                NODE_SHA256="838d400f7e66c804e5d11e2ecb61d6e9e878611146baff69d6a2def3cc23f4ac" ;;
+            *) echo "ais: unsupported macOS architecture: $(uname -m)" >&2; exit 1 ;;
+        esac
+        NODE_EXT="tar.gz" ;;
+    *) echo "ais: unsupported OS: $(uname -s)" >&2; exit 1 ;;
+esac
+
+NODE_SUBDIR="node-v${NODE_VERSION}-${NODE_ARCH}"
+NODE_BIN="$NODE_DIR/$NODE_SUBDIR/bin"
+
+if [ ! -x "$NODE_BIN/node" ]; then
+    echo "ais: bootstrapping Node.js ${NODE_VERSION} (first run only)..." >&2
+    mkdir -p "$NODE_DIR"
+    TMP="$NODE_DIR/node.${NODE_EXT}"
+    URL="https://nodejs.org/dist/v${NODE_VERSION}/${NODE_SUBDIR}.${NODE_EXT}"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$URL" -o "$TMP"
+    else
+        wget -q "$URL" -O "$TMP"
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        ACTUAL=$(sha256sum "$TMP" | awk '{print $1}')
+    else
+        ACTUAL=$(shasum -a 256 "$TMP" | awk '{print $1}')
+    fi
+    if [ "$ACTUAL" != "$NODE_SHA256" ]; then
+        echo "ais: SHA256 mismatch for the Node.js archive" >&2
+        echo "  expected: $NODE_SHA256" >&2
+        echo "  actual:   $ACTUAL" >&2
+        rm -f "$TMP"
+        exit 1
+    fi
+    tar -xf "$TMP" -C "$NODE_DIR"
+    rm -f "$TMP"
+fi
+
+PATH="$NODE_BIN:$PATH"
+export PATH
+exec "$NODE_BIN/node" "$ROOT/launcher/ais.mjs" "$@"
