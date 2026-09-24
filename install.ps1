@@ -3,6 +3,10 @@
 #
 #    irm https://github.com/j-ts/ai-switcher/releases/latest/download/install.ps1 | iex
 #
+#  From a private repository (token with read access, or a signed-in gh):
+#    irm -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" } https://raw.githubusercontent.com/j-ts/ai-switcher/main/install.ps1 | iex
+#    gh api -H 'Accept: application/vnd.github.raw' repos/j-ts/ai-switcher/contents/install.ps1 | iex
+#
 #  Installs (or updates) ais into %LOCALAPPDATA%\ais and puts its bin folder
 #  on the user PATH. No admin rights, no git/Go/Node needed: ais fetches its
 #  own pinned Node on first run and ships agm prebuilt.
@@ -16,6 +20,8 @@
 #    AIS_CHANNEL=nightly     newest build, prereleases included
 #    AIS_ARCHIVE=<file|url>  install this zip instead of downloading
 #    AIS_REPO=<owner/name>   release source            (default j-ts/ai-switcher)
+#    AIS_GITHUB_TOKEN / GITHUB_TOKEN / GH_TOKEN   token for a private repository
+#                            (else `gh auth token` when the GitHub CLI is signed in)
 #    AIS_NO_MODIFY_PATH=1    leave the user PATH alone
 #    AIS_NO_BOOTSTRAP=1      do not fetch Node right away
 # =============================================================================
@@ -49,22 +55,39 @@ function Install-Ais {
             else { throw "no such archive: $archive" }
             Write-Host "Installing ais from $archive"
         } else {
-            $headers = @{ 'User-Agent' = 'ais-installer' }
+            # Everything goes through the releases API, which also serves private
+            # repositories when a token is at hand: AIS_GITHUB_TOKEN, GITHUB_TOKEN,
+            # GH_TOKEN, or a signed-in GitHub CLI.
+            $token = @((Opt 'AIS_GITHUB_TOKEN' ''), (Opt 'GITHUB_TOKEN' ''), (Opt 'GH_TOKEN' '')) | Where-Object { $_ } | Select-Object -First 1
+            if (-not $token -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+                try { $token = (& gh auth token 2>$null | Select-Object -First 1) } catch { $token = $null }
+            }
+            $api = "https://api.github.com/repos/$repo"
+            $headers = @{ 'User-Agent' = 'ais-installer'; 'Accept' = 'application/vnd.github+json' }
+            if ($token) { $headers['Authorization'] = "Bearer $token" }
+
             $tag = Opt 'AIS_VERSION' ''
             if (-not $tag -and (Opt 'AIS_CHANNEL' '') -ne 'nightly') {
-                try { $tag = (Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -Headers $headers).tag_name } catch { $tag = '' }
+                try { $tag = (Invoke-RestMethod -Uri "$api/releases/latest" -Headers $headers).tag_name } catch { $tag = '' }
             }
             if (-not $tag) {
                 # No stable release yet (or nightly asked for): newest one, prereleases included.
-                $all = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=5" -Headers $headers)
+                try { $all = @(Invoke-RestMethod -Uri "$api/releases?per_page=5" -Headers $headers) } catch { $all = @() }
                 if ($all.Count -gt 0) { $tag = $all[0].tag_name }
             }
-            if (-not $tag) { throw "no release found for $repo" }
-            $base = "https://github.com/$repo/releases/download/$tag"
+            if (-not $tag) { throw "no release found for $repo (private repository? set GITHUB_TOKEN or run: gh auth login)" }
+            $release = Invoke-RestMethod -Uri "$api/releases/tags/$tag" -Headers $headers
             Write-Host "Installing ais $tag (windows-x64)"
-            Invoke-WebRequest -Uri "$base/$asset" -OutFile $zip -UseBasicParsing
+
+            # Asset downloads: the API redirects to storage; Windows PowerShell and
+            # PowerShell 7 both drop the Authorization header on that redirect.
+            $dl = $headers.Clone(); $dl['Accept'] = 'application/octet-stream'
             $sums = Join-Path $tmp 'SHA256SUMS'
-            Invoke-WebRequest -Uri "$base/SHA256SUMS" -OutFile $sums -UseBasicParsing
+            foreach ($pair in @(@($asset, $zip), @('SHA256SUMS', $sums))) {
+                $a = $release.assets | Where-Object { $_.name -eq $pair[0] } | Select-Object -First 1
+                if (-not $a) { throw "$($pair[0]) is missing from release $tag" }
+                Invoke-WebRequest -Uri $a.url -Headers $dl -OutFile $pair[1] -UseBasicParsing
+            }
             $want = (Get-Content $sums | Where-Object { ($_ -split '\s+')[1] -eq $asset } | ForEach-Object { ($_ -split '\s+')[0] }) | Select-Object -First 1
             if (-not $want) { throw "$asset is not listed in SHA256SUMS" }
             $got = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLower()

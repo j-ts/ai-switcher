@@ -4,6 +4,11 @@
 #
 #    curl -fsSL https://github.com/j-ts/ai-switcher/releases/latest/download/install.sh | sh
 #
+#  From a private repository (token with read access, or a signed-in gh):
+#    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+#         https://raw.githubusercontent.com/j-ts/ai-switcher/main/install.sh | sh
+#    gh api -H 'Accept: application/vnd.github.raw' repos/j-ts/ai-switcher/contents/install.sh | sh
+#
 #  Installs (or updates) ais into ~/.ais and links ~/.local/bin/ais. Needs only
 #  curl or wget, tar and a sha256 tool - no git, Go or Node: ais fetches its
 #  own pinned Node on first run and ships agm prebuilt.
@@ -18,6 +23,8 @@
 #    AIS_CHANNEL=nightly    newest build, prereleases included
 #    AIS_ARCHIVE=<file|url> install this archive instead of downloading
 #    AIS_REPO=<owner/name>  release source                (default j-ts/ai-switcher)
+#    AIS_GITHUB_TOKEN / GITHUB_TOKEN / GH_TOKEN  token for a private repository
+#                           (else `gh auth token` when the GitHub CLI is signed in)
 #    AIS_NO_MODIFY_PATH=1   do not touch shell rc files
 #    AIS_NO_BOOTSTRAP=1     do not fetch Node right away
 # =============================================================================
@@ -42,8 +49,26 @@ fetch() {   # fetch <url> <dest>
     fi
 }
 
-fetch_stdout() {
-    if command -v curl >/dev/null 2>&1; then curl -fsSL "$1"; else wget -q -O - "$1"; fi
+gh_get() {   # gh_get <url> <accept> <dest|->  (GitHub API; token-authenticated when set)
+    if command -v curl >/dev/null 2>&1; then
+        # curl drops the Authorization header on the cross-host redirect to
+        # the asset storage, which rejects a second credential.
+        if [ -n "${TOKEN:-}" ]; then
+            curl -fsSL --retry 3 -H "Accept: $2" -H "Authorization: Bearer $TOKEN" -o "$3" "$1"
+        else
+            curl -fsSL --retry 3 -H "Accept: $2" -o "$3" "$1"
+        fi
+    elif [ -z "${TOKEN:-}" ] && command -v wget >/dev/null 2>&1; then
+        wget -q --header="Accept: $2" -O "$3" "$1"
+    else
+        die "need curl (or wget, for public repositories)"
+    fi
+}
+
+asset_url() {   # asset_url <name> <release.json>: the API url of that release asset
+    grep -oE '"(url|name)"[[:space:]]*:[[:space:]]*"[^"]*"' "$2" | awk -F'"' -v want="$1" '
+        $2 == "url" && $4 ~ /\/releases\/assets\/[0-9]+$/ { u = $4; next }
+        $2 == "name" { if ($4 == want && u != "") { print u; exit } u = "" }'
 }
 
 sha256_of() {
@@ -75,20 +100,32 @@ if [ -n "${AIS_ARCHIVE:-}" ]; then
     esac
     say "Installing ais from $AIS_ARCHIVE"
 else
+    # Everything goes through the releases API, which also serves private
+    # repositories when a token is at hand: $AIS_GITHUB_TOKEN, $GITHUB_TOKEN,
+    # $GH_TOKEN, or a signed-in GitHub CLI.
+    TOKEN="${AIS_GITHUB_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
+    if [ -z "$TOKEN" ] && command -v gh >/dev/null 2>&1; then
+        TOKEN=$(gh auth token 2>/dev/null || true)
+    fi
+    API="https://api.github.com/repos/$REPO"
     tag="${AIS_VERSION:-}"
     tag_of() { sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1; }
     if [ -z "$tag" ] && [ "${AIS_CHANNEL:-}" != "nightly" ]; then
-        tag=$(fetch_stdout "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | tag_of || true)
+        tag=$(gh_get "$API/releases/latest" application/vnd.github+json - 2>/dev/null | tag_of || true)
     fi
     if [ -z "$tag" ]; then
         # No stable release yet (or nightly asked for): newest one, prereleases included.
-        tag=$(fetch_stdout "https://api.github.com/repos/$REPO/releases?per_page=5" 2>/dev/null | tag_of || true)
+        tag=$(gh_get "$API/releases?per_page=5" application/vnd.github+json - 2>/dev/null | tag_of || true)
     fi
-    [ -n "$tag" ] || die "no release found for $REPO"
-    base="https://github.com/$REPO/releases/download/$tag"
+    [ -n "$tag" ] || die "no release found for $REPO (private repository? set GITHUB_TOKEN or run: gh auth login)"
+    gh_get "$API/releases/tags/$tag" application/vnd.github+json "$tmp/release.json" \
+        || die "cannot read release $tag of $REPO"
     say "Installing ais $tag ($os-$arch)"
-    fetch "$base/$ASSET" "$tmp/$ASSET" || die "download failed: $base/$ASSET"
-    fetch "$base/SHA256SUMS" "$tmp/SHA256SUMS" || die "download failed: $base/SHA256SUMS"
+    for name in "$ASSET" SHA256SUMS; do
+        url=$(asset_url "$name" "$tmp/release.json")
+        [ -n "$url" ] || die "$name is missing from release $tag"
+        gh_get "$url" application/octet-stream "$tmp/$name" || die "download failed: $name"
+    done
     want=$(awk -v f="$ASSET" '$2 == f {print $1}' "$tmp/SHA256SUMS")
     [ -n "$want" ] || die "$ASSET is not listed in SHA256SUMS"
     got=$(sha256_of "$tmp/$ASSET")
