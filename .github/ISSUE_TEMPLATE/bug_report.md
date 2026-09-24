@@ -27,7 +27,7 @@ labels: ["bug"]
 
 - OS and version: <!-- e.g. Windows 11 26100, Ubuntu 24.04, macOS 15.1 -->
 - CPU arch:      <!-- x64 / arm64 -->
-- ClaudeCodePortable version: <!-- from `Claude.bat --list-profiles` / README badges / VERSION file -->
+- ais version: <!-- output of `ais version` -->
 
 ## `--doctor` output
 

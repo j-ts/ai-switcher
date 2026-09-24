@@ -86,8 +86,8 @@ profiles/      per-profile data, auto-created  (git-ignored)
    [`launcher/launcher.mjs`](./launcher/launcher.mjs).
 4. Add a check function in [`launcher/doctor.mjs`](./launcher/doctor.mjs)
    and append it to `ALL_CHECKS`.
-5. Update the "Pinned portable runtimes" table in
-   [`README.md`](./README.md).
+5. Keep every bootstrap script's Node pin identical
+   (`tests/bootstrap-pins.test.mjs` checks it).
 
 ## Extending the menus
 

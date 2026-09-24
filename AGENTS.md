@@ -31,7 +31,7 @@ packaging contract.
 
 1. **Before committing**: `node --test` until green (exactly what CI runs);
    the launcher scripts must keep working on stock `cmd.exe` and POSIX `sh`.
-   Update README/CONTRIBUTING when flags, layout or pipeline change;
+   Update CONTRIBUTING when flags, layout or pipeline change;
    `CHANGELOG.md` is generated — never edit it by hand.
 2. **Commit** (rules above) and **push**.
 3. **Wait for CI**; on `main` a green CI triggers the nightly (prerelease +
@@ -52,12 +52,11 @@ one unless explicitly asked.
   commit in `packaging/agm.lock` after reviewing the upstream diff.
 - Nothing may replace or delete `app/` or `profiles/` during install or
   update — that is where users' logins live.
-- Privacy section promises in the README are binding: nothing phones home.
+- Nothing phones home: no telemetry; network traffic only for downloads,
+  GitHub releases (install/update) and agm's Google OAuth/quota calls.
 
-## README & repo conventions
+## Repo conventions
 
-- Standard frame: title → badges → one-line `>` blockquote; fixed emoji
-  mapping for the standard sections (`## ✨ Features`, `## 📦 Getting
-  started`, `## 🖼️ Screenshots`, `## ❤️ Support`, `## 📜 License`).
-- License is LGPL-3.0-or-later; the `## ❤️ Support` section and
-  `.github/FUNDING.yml` stay intact.
+- **No README in the repository.** `README.md` is the owner's local file,
+  ignored by `.gitignore` — never commit it or re-add a README lint to CI.
+- License is LGPL-3.0-or-later; `.github/FUNDING.yml` stays intact.

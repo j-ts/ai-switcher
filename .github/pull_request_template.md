@@ -10,8 +10,7 @@
 
 - [ ] `node --test` passes.
 - [ ] `Claude.bat --doctor` (or `./claude.sh --doctor`) is still green.
-- [ ] If a menu's rendered text changed, the corresponding code block in
-      `README.md` (under `## Screenshots`) was refreshed by hand.
+- [ ] `ais help` still matches the commands if any were added or changed.
 
 ## Notes
 
