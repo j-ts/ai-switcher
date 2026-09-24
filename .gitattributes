@@ -1,0 +1,7 @@
+# Batch files must stay CRLF wherever they are checked out: release archives
+# are packed on Linux, and cmd.exe misreads LF-only batch files.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+# Shell scripts must stay LF, also in Windows checkouts (Git Bash, WSL).
+*.sh    text eol=lf
+bin/ais text eol=lf
