@@ -53,9 +53,9 @@ Usage:
                                          point one service at another account
   ais profile remove <profile> [--purge] forget a profile (--purge also deletes its Claude/Codex data)
   ais login <profile> [service...]       log a profile in (again)
-  ais claude|codex|agy [--as <profile>] [args...]
+  ais claude|codex|agy [--as|--profile <profile>] [args...]
                                          start a CLI as the active profile
-  ais run <service> [--as <profile>] [args...]
+  ais run <service> [--as|--profile <profile>] [args...]
                                          start a CLI and rotate accounts when it hits a usage limit
   ais agm [args...]                      run the bundled agm on ais's account store
   ais shims install|remove [--dir <dir>] plain claude/codex/agy commands that follow the active profile
@@ -429,9 +429,9 @@ async function cmdLogin(argv) {
 }
 
 function cmdLaunch(service, argv) {
-    const { opts, rest } = takeOptions(argv, ['--as']);
+    const { opts, rest } = takeOptions(argv, ['--as', '--profile']);
     const state = loadState();
-    const name = opts.as || state.active[service];
+    const name = opts.as || opts.profile || state.active[service];
     if (!name) die(`No ${SERVICE_LABEL[service]} account is active - run: ais setup`);
     const p = state.profiles[name];
     if (!p) die(`Unknown profile '${name}'.`);
@@ -443,10 +443,11 @@ function cmdLaunch(service, argv) {
 
 async function cmdRun(argv) {
     const [svc, ...rest] = argv;
-    if (!svc) throw new UsageError('Usage: ais run <claude|codex|agy> [--as <profile>] [args...]');
+    if (!svc) throw new UsageError('Usage: ais run <claude|codex|agy> [--as|--profile <profile>] [args...]');
     const [service] = parseServices([svc]);
-    const { opts, rest: args } = takeOptions(rest, ['--as']);
-    return await runWithRotation(service, args, { as: opts.as || null });
+    // --profile is what the per-tool launchers take; passed through, it lost to the active account.
+    const { opts, rest: args } = takeOptions(rest, ['--as', '--profile']);
+    return await runWithRotation(service, args, { as: opts.as || opts.profile || null });
 }
 
 async function cmdSetup(argv) {
