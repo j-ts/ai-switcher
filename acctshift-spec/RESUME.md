@@ -13,13 +13,18 @@
   reference resolves, every V-item cited is defined in §22 and scheduled in §21, and every exec 125 code
   appears in Appendix E.
 
-## Not done (optional)
+## Final consistency pass (done 2026-10-10, scripted)
 
-One final cross-section consistency pass after the fix round. It was started and stopped by the usage limit,
-so nothing ran. To run it, ask Claude for two read-only reviewers over `parts/`:
-1. the contract surface: exit codes, error.codes, flags, and JSON fields in §6, §10–§12, Appendix D/E;
-2. the behaviour flows: limit rotation, auth strikes, the agy swap and recovery, the notice gate, failure
-   handling as LimitShift sees it, and milestones.
+To save tokens this pass ran as scripted checks, not reviewers:
+- every acctshift flag used anywhere is defined in §10.4;
+- every `exit N` + error.code pair is listed in Appendix E and §10.3 (one gap fixed: `invalid-bundle`);
+- every JSON key in the §6.2, §6.3 and §11.2 examples appears in Appendix D;
+- the fix-round rules (doctor exit codes, list never exits 69, validate-only never runs exec, what
+  `mark --ok` keeps, the agy routing exception) agree in every section that states them;
+- the stale-term scan is clean.
+
+A fuller reviewer-based pass is still possible later. Ask for two read-only reviewers over `parts/`: one on
+the contract surface (§6, §10–§12, Appendix D/E), one on the behaviour flows (§5.2, §8.3, §9, §13, §15, §21).
 
 Binding decisions for any further edit, latest wins: `review/batch2-decisions.md`, the "Amendments" block in
 `review/batch2-crossnotes.md`, then `review/fix-decisions.md`.
